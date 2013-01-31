@@ -45,6 +45,7 @@ static int bionic_ifaddrs_parse_rtattr(struct rtattr *tb[], int max, struct rtat
 	while (RTA_OK(rta, len)) {
 		if (rta->rta_type <= max)
 			tb[rta->rta_type] = rta;
+
 		rta = RTA_NEXT(rta,len);
 	}
 
@@ -72,34 +73,23 @@ static void bionic_ifaddrs_recvaddrs(int fd, struct ifaddrs **ifa, __u32 seq)
 
 		status = recvmsg(fd, &msg, 0);
 
-		if (status < 0) {
+		if (status <= 0 || nladdr.nl_pid)
 			continue;
-		}
-
-		if (status == 0) {
-			return;
-		}
-
-		if (nladdr.nl_pid) { /* Message not from kernel */
-			continue;
-		}
 
 		h = (struct nlmsghdr*) buf;
 
 		while (NLMSG_OK(h, status)) {
-			if (h->nlmsg_seq != seq) {
+			if (h->nlmsg_seq != seq)
 				goto skip_it;
-			}
 
-			if (h->nlmsg_type == NLMSG_DONE) {
+			switch (h->nlmsg_type) {
+			case NLMSG_DONE:
 				return;
-			}
-
-			if (h->nlmsg_type == NLMSG_ERROR) {
+			case NLMSG_ERROR:
 				return;
-			}
-
-			if (h->nlmsg_type != RTM_NEWADDR) {
+			case RTM_NEWADDR:
+				break;
+			default:
 				goto skip_it;
 			}
 
@@ -107,30 +97,26 @@ static void bionic_ifaddrs_recvaddrs(int fd, struct ifaddrs **ifa, __u32 seq)
 
 #if HAVE_IPV6
 			if (m->ifa_family != AF_INET &&
-			    m->ifa_family != AF_INET6) {
+			    m->ifa_family != AF_INET6)
 #else /* HAVE_IPV6 */
-			if (m->ifa_family != AF_INET) {
+			if (m->ifa_family != AF_INET)
 #endif /* !HAVE_IPV6 */
 				goto skip_it;
-			}
 
-			if (m->ifa_flags & IFA_F_TENTATIVE) {
+			if (m->ifa_flags & IFA_F_TENTATIVE)
 				goto skip_it;
-			}
 
 			memset(rta_tb, 0, sizeof(rta_tb));
 			bionic_ifaddrs_parse_rtattr(rta_tb, IFA_MAX, IFA_RTA(m), h->nlmsg_len - NLMSG_LENGTH(sizeof(struct ifaddrmsg)));
 
 			if (rta_tb[IFA_LOCAL] == NULL)
 				rta_tb[IFA_LOCAL] = rta_tb[IFA_ADDRESS];
-			if (rta_tb[IFA_LOCAL] == NULL) {
-				goto skip_it;
-			}
 
-			I = calloc(1, sizeof(struct ifaddrs));
-			if (!I) {
+			if (rta_tb[IFA_LOCAL] == NULL)
+				goto skip_it;
+
+			if (!(I = calloc(1, sizeof(struct ifaddrs))))
 				return;
-			}
 
 			I->ifa_name = calloc(IFNAMSIZ, sizeof(char));
 			I->ifa_flags = m->ifa_index;
@@ -184,10 +170,8 @@ int getifaddrs(struct ifaddrs **ifa0)
 	size_t sa_size;
 	char host[NI_MAXHOST];
 
-	fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE);
-	if (fd < 0) {
+	if ((fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ROUTE)) < 0)
 		return -1;
-	}
 
 	memset(&nladdr, 0, sizeof(nladdr));
 	nladdr.nl_family = AF_NETLINK;
