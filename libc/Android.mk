@@ -1,14 +1,14 @@
 LOCAL_PATH := $(call my-dir)
 
 libc_ext_sources := \
-	dirent.c \
-	ifaddrs.c \
-	mntent.c \
-	pwd.c \
-	quota.c \
-	swab.c \
+	bionic/stubs.c \
+	kernel/common/linux/ifaddrs.c \
+	netbsd/gethnamaddr.c \
+	stdlib/locale.c \
+	unistd/swab.c \
+	unistd/opendir.c \
 
-libc_ext_includes := $(LOCAL_PATH)
+libc_ext_includes := $(LOCAL_PATH) $(LOCAL_PATH)/include
 
 include $(CLEAR_VARS)
 
